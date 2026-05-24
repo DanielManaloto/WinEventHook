@@ -1,43 +1,49 @@
 #include <windows.h>
+#include <stdlib.h>
 #include <stdio.h>
+#include <conio.h>
 #include "input_replay.h"
 #include "ui.h"
 
-void UI_LogKeyboardEvent(int index, const INPUT* in)
-{
-    UI_Log(
-        "[%d] KEY | vk=%u | scan=%u | flags=0x%lx | time=%lu",
-        index,
-        in->ki.wVk,
-        in->ki.wScan,
-        in->ki.dwFlags,
-        in->ki.time
-    );
-}
+#define SELECTOR_VISIBLE_ROWS 30
 
-void UI_LogMouseEvent(int index, const INPUT* in)
+void FormatEventString(char* buffer, size_t max_len, int index, const INPUT* in)
 {
-    LONG x = in->mi.dx;
-    LONG y = in->mi.dy;
-
-    if (in->mi.dwFlags & MOUSEEVENTF_ABSOLUTE)
+    if (in->type == INPUT_KEYBOARD)
     {
-        int screenW = GetSystemMetrics(SM_CXSCREEN);
-        int screenH = GetSystemMetrics(SM_CYSCREEN);
-
-        x = (in->mi.dx * screenW) / 65535;
-        y = (in->mi.dy * screenH) / 65535;
+        snprintf(buffer, max_len, "[%-4d] KEY   | vk=%-3u | scan=%-3u | flags=0x%-4lx | time=%lu",
+                 index,
+                 in->ki.wVk,
+                 in->ki.wScan,
+                 in->ki.dwFlags,
+                 in->ki.time);
     }
+    else if (in->type == INPUT_MOUSE)
+    {
+        LONG x = in->mi.dx;
+        LONG y = in->mi.dy;
 
-    UI_Log(
-        "[%-2d] MOUSE | flags=0x%-5lx | x=%ld | y=%ld | data=%lu | time=%lu",
-        index,
-        in->mi.dwFlags,
-        x,
-        y,
-        in->mi.mouseData,
-        in->mi.time
-    );
+        if (in->mi.dwFlags & MOUSEEVENTF_ABSOLUTE)
+        {
+            int screenW = GetSystemMetrics(SM_CXSCREEN);
+            int screenH = GetSystemMetrics(SM_CYSCREEN);
+
+            x = (in->mi.dx * screenW) / 65535;
+            y = (in->mi.dy * screenH) / 65535;
+        }
+
+        snprintf(buffer, max_len, "[%-4d] MOUSE | flags=0x%-4lx | x=%-5ld | y=%-5ld | data=%-3lu | time=%lu",
+                 index,
+                 in->mi.dwFlags,
+                 x,
+                 y,
+                 in->mi.mouseData,
+                 in->mi.time);
+    }
+    else
+    {
+        snprintf(buffer, max_len, "[%-4d] UNKNOWN INPUT TYPE: %lu", index, in->type);
+    }
 }
 
 void DumpEventFile(const char* filename)
@@ -46,50 +52,130 @@ void DumpEventFile(const char* filename)
 
     if (!fp)
     {
-        UI_Log("Failed to open file: %s", filename);
+        UI_Clear();
+        UI_SetColor(UI_COLOR_RED);
+        printf("\n  Failed to open file: %s\n", filename);
+        printf("  Press any key to return...\n");
+        UI_SetColor(UI_COLOR_DEFAULT);
+        _getch();
+        UI_DrawMenu();
         return;
     }
 
     int count = 0;
 
-    if (fread(&count, sizeof(int), 1, fp) != 1)
+    if (fread(&count, sizeof(int), 1, fp) != 1 || count <= 0)
     {
-        UI_Log("Failed to read event count");
+        UI_Clear();
+        UI_SetColor(UI_COLOR_RED);
+        printf("\n  Failed to read event count or file is empty.\n");
+        printf("  Press any key to return...\n");
+        UI_SetColor(UI_COLOR_DEFAULT);
+        fclose(fp);
+        _getch();
+        UI_DrawMenu();
+        return;
+    }
+
+    // Allocate memory and read all events at once
+    INPUT* events = (INPUT*)malloc(count * sizeof(INPUT));
+    if (!events)
+    {
         fclose(fp);
         return;
     }
 
-    UI_Log("Event count: %d", count);
+    if (fread(events, sizeof(INPUT), count, fp) != (size_t)count){
+        // Handle partial read
+    }
+    fclose(fp);
 
-    INPUT in;
+    int selectedIndex = 0;
 
-    for (int i = 0; i < count; i++)
-    {
-        if (fread(&in, sizeof(INPUT), 1, fp) != 1)
-        {
-            UI_Log("Failed to read event %d", i);
-            break;
+    // HOTKEY IDS
+    #define HK_UP    1
+    #define HK_DOWN  2
+    #define HK_ESC   4
+
+    RegisterHotKey(NULL, HK_UP,   0, VK_UP);
+    RegisterHotKey(NULL, HK_DOWN, 0, VK_DOWN);
+    RegisterHotKey(NULL, HK_ESC,  0, VK_ESCAPE);
+
+    MSG msg;
+
+    while (1) {
+        UI_Clear();
+        UI_MoveCursor(1, 1);
+
+        UI_SetColor(UI_COLOR_YELLOW);
+        printf("\n  [UP/DOWN] Navigate   [ESC] Exit Viewer    (Total Events: %d)\n\n", count);
+        UI_SetColor(UI_COLOR_DEFAULT);
+
+        int startIdx = 0;
+        int endIdx = count;
+
+        if (count > SELECTOR_VISIBLE_ROWS) {
+            startIdx = selectedIndex - (SELECTOR_VISIBLE_ROWS / 2);
+
+            if (startIdx < 0)
+                startIdx = 0;
+
+            endIdx = startIdx + SELECTOR_VISIBLE_ROWS;
+
+            if (endIdx > count) {
+                endIdx = count;
+                startIdx = count - SELECTOR_VISIBLE_ROWS;
+
+                if (startIdx < 0)
+                    startIdx = 0;
+            }
         }
 
-        switch (in.type)
-        {
-            case INPUT_KEYBOARD:
-                UI_LogKeyboardEvent(i, &in);
-                break;
+        // Draw the events
+        for (int i = startIdx; i < endIdx; i++) {
+            char lineBuffer[256];
+            FormatEventString(lineBuffer, sizeof(lineBuffer), i, &events[i]);
 
-            case INPUT_MOUSE:
-                UI_LogMouseEvent(i, &in);
-                break;
+            if (i == selectedIndex) {
+                UI_SetColor(UI_COLOR_GREEN);
+                printf("  -> %-80s\n", lineBuffer);
+                UI_SetColor(UI_COLOR_DEFAULT);
+            }
+            else {
+                printf("     %-80s\n", lineBuffer);
+            }
+        }
 
-            default:
-                UI_Log("[%d] UNKNOWN INPUT TYPE: %lu", i, in.type);
-                break;
+        // WAIT FOR HOTKEY
+        if (GetMessage(&msg, NULL, 0, 0)) {
+            if (msg.message == WM_HOTKEY) {
+                switch (msg.wParam) {
+                    case HK_UP:
+                        selectedIndex--;
+                        if (selectedIndex < 0)
+                            selectedIndex = count - 1;
+                        break;
+
+                    case HK_DOWN:
+                        selectedIndex++;
+                        if (selectedIndex >= count)
+                            selectedIndex = 0;
+                        break;
+
+                    case HK_ESC:
+                        goto cleanup_exit;
+                }
+            }
         }
     }
 
-    fclose(fp);
+cleanup_exit:
+    UnregisterHotKey(NULL, HK_UP);
+    UnregisterHotKey(NULL, HK_DOWN);
+    UnregisterHotKey(NULL, HK_ESC);
 
-    UI_Log("Dump complete.");
+    free(events);
+    UI_DrawMenu();
 }
 
 #define REPLAY_SPEED 0.8f

@@ -31,14 +31,14 @@ OBJ = $(SRC:$(SRC_DIR)/%.c=$(DEBUG_DIR)/%.o)
 # Targets
 # ==============================
 
-TARGET = $(DEBUG_DIR)/$(PROJECT).exe
+TARGET = $(PROJECT).exe
 
 all: $(TARGET)
 
 # Link
 $(TARGET): $(OBJ)
 	@mkdir -p $(DEBUG_DIR)
-	$(CC) $(OBJ) -o $@ $(LDFLAGS)
+	$(CC) $(OBJ) -o $@
 
 # Compile
 $(DEBUG_DIR)/%.o: $(SRC_DIR)/%.c
@@ -51,6 +51,7 @@ $(DEBUG_DIR)/%.o: $(SRC_DIR)/%.c
 
 clean:
 	rm -rf $(BUILD_DIR)
+	rm $(TARGET)
 
 run: all
 	./$(TARGET)

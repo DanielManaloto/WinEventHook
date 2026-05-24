@@ -4,8 +4,9 @@
 extern "C" {
 #endif
 
-void UI_LogKeyboardEvent(int index, const INPUT* in);
-void UI_LogMouseEvent(int index, const INPUT* in);
+// void UI_LogKeyboardEvent(int index, const INPUT* in);
+// void UI_LogMouseEvent(int index, const INPUT* in);
+void FormatEventString(char* buffer, size_t max_len, int index, const INPUT* in);
 void DumpEventFile(const char *filename);
 void Replay(const char *filename);
 

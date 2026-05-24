@@ -32,7 +32,7 @@ static void EnableHotkeys() {
     RegisterHotKey(NULL, HK_VIEW, 0, HOTKEY_VIEW);
     RegisterHotKey(NULL, HK_TOGGLE, 0, HOTKEY_TOGGLE);
     RegisterHotKey(NULL, HK_REPLAY, 0, HOTKEY_REPLAY);
-    //RegisterHotKey(NULL, HK_EXIT, 0, HOTKEY_EXIT);
+    RegisterHotKey(NULL, HK_EXIT, 0, HOTKEY_EXIT);
 }
 
 int main() {
@@ -143,7 +143,6 @@ int main() {
                     DrawStatus("Idle", UI_COLOR_GREEN);
 
                     EnableHotkeys();
-                    RegisterHotKey(NULL, HK_EXIT, 0, HOTKEY_EXIT);
 
                     break;
                 }
