@@ -178,7 +178,7 @@ cleanup_exit:
     UI_DrawMenu();
 }
 
-#define REPLAY_SPEED 0.8f
+#define REPLAY_SPEED 1.4f
 void Replay(const char *filename){
 
     FILE *fp = fopen(filename, "rb");

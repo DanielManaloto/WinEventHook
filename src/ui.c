@@ -110,7 +110,7 @@ void UI_DrawTitle(const char* title)
 
     UI_DrawLine(70);
 
-    printf("                                %s\n", title);
+    printf("                            %s\n", title);
 
     UI_DrawLine(70);
 
